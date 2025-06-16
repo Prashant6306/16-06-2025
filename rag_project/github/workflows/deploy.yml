@@ -1,6 +1,5 @@
 name: Deploy to AWS ECR & EC2
 
-
 on:
   push:
     branches: [main]
