@@ -9,34 +9,42 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Configure AWS
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v3
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          aws-region: us-east-1  # This should match the region of your ECR repo
+
+      - name: Login to Amazon ECR
+        run: |
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 677276102736.dkr.ecr.us-east-1.amazonaws.com
 
       - name: Build Docker Image
         run: |
           docker build -t rag-project .
 
-      - name: Tag and Push to ECR
+      - name: Tag Docker Image
         run: |
-          aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 677276102736.dkr.ecr.ap-south-1.amazonaws.com
           docker tag rag-project:latest 677276102736.dkr.ecr.us-east-1.amazonaws.com/fassi:latest
-          docker push :latest677276102736.dkr.ecr.us-east-1.amazonaws.com/fassi
 
-      - name: SSH Deploy to EC2
+      - name: Push Docker Image to ECR
+        run: |
+          docker push 677276102736.dkr.ecr.us-east-1.amazonaws.com/fassi:latest
+
+      - name: Deploy to EC2 via SSH
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 677276102736.dkr.ecr.us-east-1.amazonaws.com
             docker pull 677276102736.dkr.ecr.us-east-1.amazonaws.com/fassi:latest
             docker stop rag || true
             docker rm rag || true
-            docker run -d --name rag -p 8000:8000 :latest677276102736.dkr.ecr.us-east-1.amazonaws.com/fassi
+            docker run -d --name rag -p 8000:8000 677276102736.dkr.ecr.us-east-1.amazonaws.com/fassi:latest
+
